@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remembertada</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+
+        <header class="fade-in">
+            <h1>Remembertada</h1>
+            <p class="date">{{ today.strftime('%A, %B %d, %Y') }}</p>
+        </header>
+
+        <!-- Today's Medications -->
+        <section>
+            <div class="section-label fade-in">Today</div>
+            <div class="med-cards">
+                {% for med in today_meds %}
+                <div class="med-card fade-in {% if med.taken %}taken{% else %}pending{% endif %}"
+                     data-med="{{ med.med_name }}" data-timing="{{ med.timing }}">
+                    <div class="med-info">
+                        <span class="med-name">{{ med.med_name }}</span>
+                        <span class="med-time">{{ med.timing }}</span>
+                    </div>
+                    {% if med.taken %}
+                    <span class="status-badge taken-badge">Taken</span>
+                    {% else %}
+                    <button class="status-badge pending-badge" onclick="markTaken('{{ med.med_name }}', '{{ med.timing }}', this)">
+                        Mark Taken
+                    </button>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                {% if not today_meds %}
+                <div class="no-meds">
+                    No medications scheduled for today.
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Upcoming Schedule -->
+        <section>
+            <div class="section-label fade-in">Upcoming</div>
+            <div class="schedule-grid" id="scheduleGrid">
+                {% for date_str, meds in upcoming_by_date.items() %}
+                <div class="day-block {% if date_str == today.isoformat() %}today{% endif %}">
+                    <div class="day-header">{{ date_str }}</div>
+                    <div class="day-meds">
+                        {% for med in meds %}
+                        <div class="day-med {% if med.taken %}taken{% endif %}">
+                            <span class="day-med-name">{{ med.med_name }}</span>
+                            <div class="day-med-meta">
+                                <span class="day-med-time">{{ med.timing }}</span>
+                                <span class="day-med-dot {% if med.taken %}taken-dot{% else %}pending-dot{% endif %}"></span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <div class="status-bar" id="statusBar"></div>
+    </div>
+
+    <script>
+        async function markTaken(medName, timing, btn) {
+            btn.disabled = true;
+            btn.textContent = '...';
+
+            try {
+                const res = await fetch('/api/mark-taken', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({med_name: medName, timing: timing})
+                });
+
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    const card = btn.closest('.med-card');
+                    card.classList.remove('pending');
+                    card.classList.add('taken');
+                    btn.className = 'status-badge taken-badge';
+                    btn.textContent = 'Taken';
+                    btn.onclick = null;
+                    showStatus(data.message, 'success');
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Mark Taken';
+                    showStatus(data.message, 'error');
+                }
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = 'Mark Taken';
+                showStatus('Network error', 'error');
+            }
+        }
+
+        function showStatus(msg, type) {
+            const bar = document.getElementById('statusBar');
+            bar.textContent = msg;
+            bar.className = 'status-bar ' + type;
+            bar.style.display = 'block';
+            setTimeout(() => { bar.style.display = 'none'; }, 3000);
+        }
+
+        /* Scroll Entry Animations */
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+        /* Staggered reveal for day blocks */
+        const dayObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry, index) => {
+                if (entry.isIntersecting) {
+                    const block = entry.target;
+                    const idx = Array.from(block.parentElement.children).indexOf(block);
+                    block.style.transitionDelay = (idx * 80) + 'ms';
+                    block.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.day-block').forEach(el => dayObserver.observe(el));
+
+        /* Auto-refresh every 60 seconds */
+        setInterval(() => location.reload(), 60000);
+    </script>
+</body>
+</html>
