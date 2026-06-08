@@ -34,7 +34,7 @@ All cron endpoints (except `/api/ping`) are protected by `CRON_SECRET`.
 
 ### One-click deploy
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Dashetty/RememeberTada)
 
 The `render.yaml` is pre-configured with:
 - Python 3.12 runtime
