@@ -1,78 +1,54 @@
+import os
 from flask import Flask, render_template, jsonify, request
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-from plyer import notification
 from datetime import date
+import httpx
 import csv_handler
 
 app = Flask(__name__)
-scheduler = BackgroundScheduler()
-scheduler.start()
+
+NTFY_TOPIC = "remembertada-hardeep"
+CRON_SECRET = os.environ.get("CRON_SECRET", "dev-secret-change-in-production")
 
 
 def send_notification(title, message):
-    """Send a system-wide desktop notification."""
+    """Send notification to phone via ntfy.sh."""
     try:
-        notification.notify(
-            title=title,
-            message=message,
-            timeout=15,
+        r = httpx.post(
+            f"https://ntfy.sh/{NTFY_TOPIC}",
+            json={"topic": NTFY_TOPIC, "title": title, "message": message},
+            timeout=10,
         )
+        r.raise_for_status()
+        print(f"[ntfy] Sent: {title} - {message}")
     except Exception as e:
         print(f"[Notification Error] {e}")
 
 
-def morning_reminder():
-    """9:30 AM reminder — check for morning meds."""
-    today_meds = csv_handler.get_todays_meds()
-    morning_meds = [m for m in today_meds if m["timing"] == "morning"]
-    pending = [m for m in morning_meds if not m["taken"]]
+def verify_cron_secret():
+    """Check the ?secret= query param matches CRON_SECRET."""
+    return request.args.get("secret") == CRON_SECRET
 
+
+def run_reminder(timing):
+    """Run reminder logic for given timing (morning/night)."""
+    today_meds = csv_handler.get_todays_meds()
+    filtered = [m for m in today_meds if m["timing"] == timing]
+    pending = [m for m in filtered if not m["taken"]]
+
+    timing_label = timing.capitalize()
     if pending:
         names = ", ".join(m["med_name"] for m in pending)
         send_notification(
-            "💊 Morning Medication Reminder",
+            f"{timing_label} Medication",
             f"Time to take: {names}",
         )
+        return {"status": "ok", "message": f"Reminder sent for {len(pending)} pending {timing} meds"}
     else:
         send_notification(
-            "💊 Morning Meds",
-            "All morning medications taken! ✅",
+            f"{timing_label} Meds",
+            f"All {timing} medications taken.",
         )
-
-
-def night_reminder():
-    """9:30 PM reminder — check for night meds."""
-    today_meds = csv_handler.get_todays_meds()
-    night_meds = [m for m in today_meds if m["timing"] == "night"]
-    pending = [m for m in night_meds if not m["taken"]]
-
-    if pending:
-        names = ", ".join(m["med_name"] for m in pending)
-        send_notification(
-            "💊 Night Medication Reminder",
-            f"Time to take: {names}",
-        )
-    else:
-        send_notification(
-            "💊 Night Meds",
-            "All night medications taken! ✅",
-        )
-
-
-# Schedule reminders
-scheduler.add_job(
-    morning_reminder,
-    CronTrigger(hour=9, minute=30),
-    id="morning_reminder",
-    replace_existing=True,
-)
-scheduler.add_job(
-    night_reminder,
-    CronTrigger(hour=21, minute=30),
-    id="night_reminder",
-    replace_existing=True,
-)
+        return {"status": "ok", "message": f"No pending {timing} meds — all taken!"}
 
 
 @app.route("/")
@@ -121,9 +97,37 @@ def api_meds():
     return jsonify(meds)
 
 
+@app.route("/api/remind-morning")
+def remind_morning():
+    """Cron-triggered endpoint for morning reminder (9:30 AM)."""
+    if not verify_cron_secret():
+        return jsonify({"error": "Unauthorized"}), 401
+    result = run_reminder("morning")
+    return jsonify(result)
+
+
+@app.route("/api/remind-night")
+def remind_night():
+    """Cron-triggered endpoint for night reminder (9:30 PM)."""
+    if not verify_cron_secret():
+        return jsonify({"error": "Unauthorized"}), 401
+    result = run_reminder("night")
+    return jsonify(result)
+
+
+@app.route("/api/ping")
+def ping():
+    """Health-check endpoint to keep the Render app alive."""
+    return jsonify({"status": "ok", "time": str(date.today())})
+
+
 if __name__ == "__main__":
-    print("🏥 Remembertada starting...")
+    print("Remembertada starting...")
+    print(f"   Phone notifications: https://ntfy.sh/{NTFY_TOPIC}")
     print("   Dashboard: http://localhost:5000")
-    print("   Morning reminder: 9:30 AM")
-    print("   Night reminder: 9:30 PM")
+    print()
+    print("   Cron endpoints (protected by CRON_SECRET):")
+    print("     GET /api/remind-morning?secret=...  (9:30 AM)")
+    print("     GET /api/remind-night?secret=...   (9:30 PM)")
+    print("     GET /api/ping                       (keep-alive)")
     app.run(debug=True, host="0.0.0.0", port=5000)

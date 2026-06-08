@@ -215,7 +215,9 @@ header h1 {
     border-radius: var(--radius);
     padding: 20px;
     background: var(--surface);
-    transition: box-shadow 200ms ease;
+    transition: box-shadow 200ms ease,
+                opacity 600ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .day-block:hover {

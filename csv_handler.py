@@ -2,7 +2,7 @@ import csv
 import os
 from datetime import datetime, date
 
-CSV_PATH = "/mnt/windrive/Zorin-Share/Downloads/Misc/60-Day Medication Schedule Final.csv"
+CSV_PATH = os.environ.get("CSV_PATH", "medication_schedule.csv")
 
 
 def parse_csv():
