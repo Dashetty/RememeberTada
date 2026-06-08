@@ -1,54 +1,17 @@
 import os
 from flask import Flask, render_template, jsonify, request
 from datetime import date
-import httpx
 import csv_handler
+import reminder
 
 app = Flask(__name__)
 
-NTFY_TOPIC = "remembertada-hardeep"
 CRON_SECRET = os.environ.get("CRON_SECRET", "dev-secret-change-in-production")
-
-
-def send_notification(title, message):
-    """Send notification to phone via ntfy.sh."""
-    try:
-        r = httpx.post(
-            f"https://ntfy.sh/{NTFY_TOPIC}",
-            json={"topic": NTFY_TOPIC, "title": title, "message": message},
-            timeout=10,
-        )
-        r.raise_for_status()
-        print(f"[ntfy] Sent: {title} - {message}")
-    except Exception as e:
-        print(f"[Notification Error] {e}")
 
 
 def verify_cron_secret():
     """Check the ?secret= query param matches CRON_SECRET."""
     return request.args.get("secret") == CRON_SECRET
-
-
-def run_reminder(timing):
-    """Run reminder logic for given timing (morning/night)."""
-    today_meds = csv_handler.get_todays_meds()
-    filtered = [m for m in today_meds if m["timing"] == timing]
-    pending = [m for m in filtered if not m["taken"]]
-
-    timing_label = timing.capitalize()
-    if pending:
-        names = ", ".join(m["med_name"] for m in pending)
-        send_notification(
-            f"{timing_label} Medication",
-            f"Time to take: {names}",
-        )
-        return {"status": "ok", "message": f"Reminder sent for {len(pending)} pending {timing} meds"}
-    else:
-        send_notification(
-            f"{timing_label} Meds",
-            f"All {timing} medications taken.",
-        )
-        return {"status": "ok", "message": f"No pending {timing} meds — all taken!"}
 
 
 @app.route("/")
@@ -102,7 +65,7 @@ def remind_morning():
     """Cron-triggered endpoint for morning reminder (9:30 AM)."""
     if not verify_cron_secret():
         return jsonify({"error": "Unauthorized"}), 401
-    result = run_reminder("morning")
+    result = reminder.run_reminder("morning")
     return jsonify(result)
 
 
@@ -111,7 +74,7 @@ def remind_night():
     """Cron-triggered endpoint for night reminder (9:30 PM)."""
     if not verify_cron_secret():
         return jsonify({"error": "Unauthorized"}), 401
-    result = run_reminder("night")
+    result = reminder.run_reminder("night")
     return jsonify(result)
 
 

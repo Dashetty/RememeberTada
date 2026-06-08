@@ -15,58 +15,81 @@ Then open http://localhost:5000
 
 - **Flask web app** — dashboard + JSON API
 - **ntfy.sh** — push notifications to phone
-- **cron-job.org** (or Render Cron) — triggers reminder endpoints at 9:30 AM/PM
+- **PythonAnywhere Tasks** — built-in cron scheduler triggers reminders at 9:30 AM/PM
 - **CSV file** — medication schedule data
 
-### Why not APScheduler?
+No APScheduler needed — PythonAnywhere runs the reminder scripts directly via its Tasks tab.
 
-Free hosting platforms (Render, Railway, etc.) spin down apps during inactivity, which kills in-process schedulers. Instead, an external cron service pings two API endpoints:
+## Deployment (PythonAnywhere)
 
-| Endpoint | Schedule | What it does |
-|---|---|---|
-| `GET /api/remind-morning?secret=...` | 9:30 AM daily | Sends morning medication reminder |
-| `GET /api/remind-night?secret=...` | 9:30 PM daily | Sends night medication reminder |
-| `GET /api/ping` | Every 10 min | Keeps the Render app alive |
+### Step 1: Push to GitHub
 
-All cron endpoints (except `/api/ping`) are protected by `CRON_SECRET`.
+```bash
+git push origin master
+```
 
-## Deployment (Render)
+### Step 2: Open PythonAnywhere
 
-### One-click deploy
+1. Go to [pythonanywhere.com](https://www.pythonanywhere.com) and create a **Free** account (no card needed)
+2. Open a **Bash console** from the Dashboard
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Dashetty/RememeberTada)
+### Step 3: Clone the repo
 
-The `render.yaml` is pre-configured with:
-- Python 3.12 runtime
-- 2 gunicorn workers
-- Auto-generated `CRON_SECRET`
-- Cron jobs for morning (9:30 AM) and night (9:30 PM) reminders
+```bash
+git clone https://github.com/Dashetty/RememeberTada.git
+cd RememeberTada
+```
 
-### Manual deploy
+### Step 4: Create a virtual environment
 
-1. Push this repo to GitHub
-2. On [Render Dashboard](https://dashboard.render.com) → New Web Service
-3. Connect your repo
-4. Set these environment variables:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-| Variable | Value |
+### Step 5: Set up the web app
+
+1. Go to the **Web** tab → **Add a new web app**
+2. Choose **Manual Configuration** → **Python 3.12**
+3. Set the source code directory to `/home/Dashetty/RememeberTada`
+4. Set the WSGI configuration file to point to the Flask app (PythonAnywhere's auto-generated WSGI file will need updating — guide below)
+
+### Step 6: Configure WSGI file
+
+In the Web tab, click on the WSGI configuration file link. Replace its contents with:
+
+```python
+import sys
+path = '/home/Dashetty/RememeberTada'
+if path not in sys.path:
+    sys.path.append(path)
+
+from app import app as application
+```
+
+### Step 7: Set environment variables
+
+In the Web tab, go to the **Environment variables** section and add:
+
+| Key | Value |
 |---|---|
-| `PYTHON_VERSION` | `3.12` |
-| `CRON_SECRET` | (generate a random string) |
-| `CSV_PATH` | `medication_schedule.csv` (default) |
+| `CSV_PATH` | `/home/Dashetty/RememeberTada/medication_schedule.csv` |
 
-5. Deploy — Render automatically detects the `Procfile`
+### Step 8: Reload and test
 
-### Set up cron jobs (if not using render.yaml)
+Click the green **Reload** button. Visit `https://Dashetty.pythonanywhere.com/` to see your dashboard.
 
-Create two cron jobs on [cron-job.org](https://cron-job.org) (free):
+### Step 9: Set up scheduled tasks
 
-| URL | Schedule |
+Go to the **Tasks** tab and add two daily tasks:
+
+| Time | Command |
 |---|---|
-| `https://your-app.onrender.com/api/remind-morning?secret=YOUR_SECRET` | Every day at 9:30 AM |
-| `https://your-app.onrender.com/api/remind-night?secret=YOUR_SECRET` | Every day at 9:30 PM |
+| `09:30` | `cd /home/Dashetty/RememeberTada && source venv/bin/activate && python run_task.py morning` |
+| `21:30` | `cd /home/Dashetty/RememeberTada && source venv/bin/activate && python run_task.py night` |
 
-Also create a keep-alive ping every 10 minutes to `https://your-app.onrender.com/api/ping`.
+That's it — you'll get notifications on your phone at 9:30 AM and 9:30 PM every day.
 
 ## CSV Format
 
@@ -81,7 +104,7 @@ Date,MedName,Timings,Taken
 
 ## Tech Stack
 
-- Python 3 + Flask + Gunicorn
+- Python 3 + Flask
 - ntfy.sh (push notifications)
-- cron-job.org or Render Cron (scheduling)
+- PythonAnywhere (hosting + scheduled tasks)
 - Minimalist UI (warm monochrome + editorial typography)
