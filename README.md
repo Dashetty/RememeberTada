@@ -2,6 +2,8 @@
 
 A personal medication reminder dashboard that sends push notifications to your phone at 9:30 AM and 9:30 PM via [ntfy.sh](https://ntfy.sh).
 
+<p align="center"><img src="./static/RememberTada.gif" alt="Remembertada Animation" width="400"/></p>
+
 ## Quick Start (Local)
 
 ```bash
