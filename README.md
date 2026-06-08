@@ -13,12 +13,12 @@ Then open http://localhost:5000
 
 ## Architecture
 
-- **Flask web app** — dashboard + JSON API
-- **ntfy.sh** — push notifications to phone
-- **PythonAnywhere Tasks** — built-in cron scheduler triggers reminders at 9:30 AM/PM
+- **Flask web app** — dashboard + JSON API, hosted on PythonAnywhere
+- **ntfy.sh** — push notifications to your phone
+- **cron-job.org** — free external cron service triggers reminders at 9:30 AM/PM
 - **CSV file** — medication schedule data
 
-No APScheduler needed — PythonAnywhere runs the reminder scripts directly via its Tasks tab.
+No APScheduler or server-side scheduler needed — cron-job.org handles the timing externally.
 
 ## Deployment (PythonAnywhere)
 
@@ -53,43 +53,41 @@ pip install -r requirements.txt
 1. Go to the **Web** tab → **Add a new web app**
 2. Choose **Manual Configuration** → **Python 3.12**
 3. Set the source code directory to `/home/Dashetty/RememeberTada`
-4. Set the WSGI configuration file to point to the Flask app (PythonAnywhere's auto-generated WSGI file will need updating — guide below)
+4. Set the virtualenv to `/home/Dashetty/RememeberTada/venv`
 
 ### Step 6: Configure WSGI file
 
-In the Web tab, click on the WSGI configuration file link. Replace its contents with:
+Open the WSGI file at `/var/www/dashetty_pythonanywhere_com_wsgi.py` and replace everything with:
 
 ```python
 import sys
+import os
+
 path = '/home/Dashetty/RememeberTada'
 if path not in sys.path:
     sys.path.append(path)
 
+os.environ['CSV_PATH'] = '/home/Dashetty/RememeberTada/medication_schedule.csv'
+os.environ['CRON_SECRET'] = 'your-secret-key-here-change-this'
+
 from app import app as application
 ```
 
-### Step 7: Set environment variables
+### Step 7: Reload
 
-In the Web tab, go to the **Environment variables** section and add:
+Click the **Reload** button on the Web tab.
 
-| Key | Value |
-|---|---|
-| `CSV_PATH` | `/home/Dashetty/RememeberTada/medication_schedule.csv` |
+### Step 8: Set up cron-job.org (free, no card needed)
 
-### Step 8: Reload and test
+Go to [cron-job.org](https://cron-job.org) and create a **free account**. Then create **3 jobs**:
 
-Click the green **Reload** button. Visit `https://Dashetty.pythonanywhere.com/` to see your dashboard.
+| # | URL | Schedule | Description |
+|---|---|---|---|
+| 1 | `https://Dashetty.pythonanywhere.com/api/remind-morning?secret=YOUR_CRON_SECRET` | `30 9 * * *` (9:30 AM daily) | Morning reminder |
+| 2 | `https://Dashetty.pythonanywhere.com/api/remind-night?secret=YOUR_CRON_SECRET` | `30 21 * * *` (9:30 PM daily) | Night reminder |
+| 3 | `https://Dashetty.pythonanywhere.com/api/ping` | Every 10 minutes | Keep-alive |
 
-### Step 9: Set up scheduled tasks
-
-Go to the **Tasks** tab and add two daily tasks:
-
-| Time | Command |
-|---|---|
-| `09:30` | `cd /home/Dashetty/RememeberTada && source venv/bin/activate && python run_task.py morning` |
-| `21:30` | `cd /home/Dashetty/RememeberTada && source venv/bin/activate && python run_task.py night` |
-
-That's it — you'll get notifications on your phone at 9:30 AM and 9:30 PM every day.
+Replace `YOUR_CRON_SECRET` with the same secret you put in the WSGI file.
 
 ## CSV Format
 
@@ -106,5 +104,6 @@ Date,MedName,Timings,Taken
 
 - Python 3 + Flask
 - ntfy.sh (push notifications)
-- PythonAnywhere (hosting + scheduled tasks)
+- PythonAnywhere (hosting)
+- cron-job.org (free cron scheduling)
 - Minimalist UI (warm monochrome + editorial typography)

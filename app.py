@@ -4,9 +4,8 @@ from datetime import date
 import csv_handler
 import reminder
 
-app = Flask(__name__)
-
-CRON_SECRET = os.environ.get("CRON_SECRET", "dev-secret-change-in-production")
+app = Flask(__name__)CRON_SECRET = os.environ.get("CRON_SECRET", "dev-secret-change-in-production")
+NTFY_TOPIC = "remembertada-hardeep"
 
 
 def verify_cron_secret():
@@ -80,7 +79,7 @@ def remind_night():
 
 @app.route("/api/ping")
 def ping():
-    """Health-check endpoint to keep the Render app alive."""
+    """Health-check endpoint to keep the app alive."""
     return jsonify({"status": "ok", "time": str(date.today())})
 
 
